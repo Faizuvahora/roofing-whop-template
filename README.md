@@ -1,196 +1,69 @@
-Welcome to your new TanStack Start app!
+# Roofing Company Website Template: built on Whop
 
-# Getting Started
+A production-ready website template for US roofing contractors, hosted on **Whop Websites** and using **Whop Payments** end to end:
+deposit → job → final invoice.
 
-To run this application:
+**Live demo:** https://rooftpl-x7k2q.whop.site (Whop sandbox, so no real money moves)
+Add `?debug=1` to any URL to open a live panel of the custom `whop.track` events.
+
+## What's inside
+
+| Requirement | Where |
+|---|---|
+| Services (repair, replacement, inspection, maintenance), service area, financing callout, reviews/trust, contact | `src/components/Sections.tsx`, `src/components/EstimateForm.tsx` |
+| Real plans: $149 inspection, $500 project deposit, $349 flat-rate tune-up | `src/site.config.ts` → `npm run setup:plans` → `src/whop.plans.json` |
+| Checkout with **CheckoutElement** + **ExpressCheckoutElement** (Apple Pay / Google Pay) | `src/components/WhopCheckout.tsx` → `PlanCheckout` |
+| **PaymentElement + AddressElement + BrandingElement** in setup mode → **setup intent** (card on file) | `WhopCheckout.tsx` → `CardOnFile`; server `saveCardOnFile` |
+| "Request an Estimate" → **lead on the Whop account** | `src/server/functions.ts` → `submitEstimate` |
+| Final balance via the **Invoices API** (auto-charge stored card or email for manual payment) | `/admin` page → `adminCreateFinalInvoice` |
+| Custom pixel events `estimate_requested`, `service_viewed`, `deposit_started` | `src/lib/track.ts` (+ call sites) |
+
+No card data ever touches this app. Every payment surface is a Whop element, so financing options (Klarna, Afterpay, Splitit…)
+appear automatically inside the CheckoutElement for approved merchants.
+
+### The flows
+
+1. **Estimate form.** It calls `POST /members` (Whop's Leads API was folded into Members: a person who joins without buying is a lead,
+   `most_recent_action: "joined"`), then records a standard `lead` conversion with `POST /events`. The browser fires `whop.track("estimate_requested")`.
+2. **Deposit.** On *Continue to secure checkout* the browser fires `whop.track("deposit_started")`. The buyer pays the $500 deposit plan in the
+   CheckoutElement (or one tap with the ExpressCheckoutElement). The page then mounts `<Payments mode="setup">` with PaymentElement,
+   AddressElement and BrandingElement. `createConfirmationToken()` → server `POST /setup_intents` → a saved `payt_` payment method, with the job reference in its metadata.
+3. **Final balance.** `/admin` (PIN-protected) lists succeeded setup intents. Pick the customer, enter the balance, and choose:
+   - **Auto-charge**: `POST /invoices` with `payment_method_id` → `POST /invoices/{id}/issue` (Whop charges the stored card off-session).
+   - **Manual**: `POST /invoices` with `due_at` → `POST /invoices/{id}/send` (Whop emails the invoice with a hosted pay link).
+4. **Pixel.** Page views and checkout events are automatic on `*.whop.site`. `service_viewed` fires when a service card scrolls into view
+   (or its Book button is clicked), once per service per page load.
+
+## Re-brand it for a new roofer (no structural changes)
+
+1. Edit **`src/site.config.ts`**: company name, phone, colors, services, cities, reviews, financing copy, plan titles and prices.
+2. `npm run setup:plans` creates the products and plans in that company's Whop account and rewrites `src/whop.plans.json`.
+3. `whop apps deploy`
+
+## Setup from scratch
 
 ```bash
+npm install -g @whop/cli        # Node 22+
+whop login                       # production account that hosts the site
 npm install
-npm run dev
+
+# .env (this folder or its parent)
+WHOP_SANDBOX_API_KEY=apik_...    # sandbox.whop.com → Developer → API keys
+WHOP_SANDBOX_COMPANY_ID=biz_...
+
+npm run setup:plans              # add -- --prod for production
+
+whop apps secrets set --secret WHOP_ENV=sandbox --secret WHOP_SANDBOX_API_KEY=apik_... --secret ADMIN_PIN=123456
+whop apps deploy
 ```
 
-# Building For Production
+Going live with real payments: create production plans (`npm run setup:plans -- --prod`), then set
+`WHOP_ENV=production` and `WHOP_PROD_API_KEY` as app secrets and redeploy. Elements switch environment automatically
+from `src/whop.plans.json`.
 
-To build this application for production:
+**Sandbox test card:** `4242 4242 4242 4242`, any future expiry, any CVC (choose **United States** as the billing country).
 
-```bash
-npm run build
-```
+## Stack
 
-## Styling
-
-This project uses [Tailwind CSS](https://tailwindcss.com/) for styling.
-
-### Removing Tailwind CSS
-
-If you prefer not to use Tailwind CSS:
-
-1. Remove the demo pages in `src/routes/demo/`
-2. Replace the Tailwind import in `src/styles.css` with your own styles
-3. Remove `tailwindcss()` from the plugins array in `vite.config.ts`
-4. Remove `@tailwindcss/vite` and `tailwindcss` from `package.json`
-
-
-## Deploy to Cloudflare Workers
-
-This project uses the Cloudflare Vite plugin (configured in `vite.config.ts`) and `wrangler.jsonc`:
-
-1. Install Wrangler: `npm install -g wrangler`
-2. Authenticate: `wrangler login`
-3. Deploy: `npx wrangler deploy`
-
-For production env vars, run `wrangler secret put MY_VAR` for each secret listed in `.env.example`. Public (non-secret) vars go in `wrangler.jsonc` under `vars`.
-
-KV, D1, R2, and Durable Object bindings are configured in `wrangler.jsonc` — see https://developers.cloudflare.com/workers/wrangler/configuration/.
-
-
-
-## Routing
-
-This project uses [TanStack Router](https://tanstack.com/router) with file-based routing. Routes are managed as files in `src/routes`.
-
-### Adding A Route
-
-To add a new route to your application just add a new file in the `./src/routes` directory.
-
-TanStack will automatically generate the content of the route file for you.
-
-Now that you have two routes you can use a `Link` component to navigate between them.
-
-### Adding Links
-
-To use SPA (Single Page Application) navigation you will need to import the `Link` component from `@tanstack/react-router`.
-
-```tsx
-import { Link } from "@tanstack/react-router";
-```
-
-Then anywhere in your JSX you can use it like so:
-
-```tsx
-<Link to="/about">About</Link>
-```
-
-This will create a link that will navigate to the `/about` route.
-
-More information on the `Link` component can be found in the [Link documentation](https://tanstack.com/router/v1/docs/framework/react/api/router/linkComponent).
-
-### Using A Layout
-
-In the File Based Routing setup the layout is located in `src/routes/__root.tsx`. Anything you add to the root route will appear in all the routes. The route content will appear in the JSX where you render `{children}` in the `shellComponent`.
-
-Here is an example layout that includes a header:
-
-```tsx
-import { HeadContent, Scripts, createRootRoute } from '@tanstack/react-router'
-
-export const Route = createRootRoute({
-  head: () => ({
-    meta: [
-      { charSet: 'utf-8' },
-      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
-      { title: 'My App' },
-    ],
-  }),
-  shellComponent: ({ children }) => (
-    <html lang="en">
-      <head>
-        <HeadContent />
-      </head>
-      <body>
-        <header>
-          <nav>
-            <Link to="/">Home</Link>
-            <Link to="/about">About</Link>
-          </nav>
-        </header>
-        {children}
-        <Scripts />
-      </body>
-    </html>
-  ),
-})
-```
-
-More information on layouts can be found in the [Layouts documentation](https://tanstack.com/router/latest/docs/framework/react/guide/routing-concepts#layouts).
-
-## Server Functions
-
-TanStack Start provides server functions that allow you to write server-side code that seamlessly integrates with your client components.
-
-```tsx
-import { createServerFn } from '@tanstack/react-start'
-
-const getServerTime = createServerFn({
-  method: 'GET',
-}).handler(async () => {
-  return new Date().toISOString()
-})
-
-// Use in a component
-function MyComponent() {
-  const [time, setTime] = useState('')
-  
-  useEffect(() => {
-    getServerTime().then(setTime)
-  }, [])
-  
-  return <div>Server time: {time}</div>
-}
-```
-
-## API Routes
-
-You can create API routes by using the `server` property in your route definitions:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-import { json } from '@tanstack/react-start'
-
-export const Route = createFileRoute('/api/hello')({
-  server: {
-    handlers: {
-      GET: () => json({ message: 'Hello, World!' }),
-    },
-  },
-})
-```
-
-## Data Fetching
-
-There are multiple ways to fetch data in your application. You can use TanStack Query to fetch data from a server. But you can also use the `loader` functionality built into TanStack Router to load the data for a route before it's rendered.
-
-For example:
-
-```tsx
-import { createFileRoute } from '@tanstack/react-router'
-
-export const Route = createFileRoute('/people')({
-  loader: async () => {
-    const response = await fetch('https://swapi.dev/api/people')
-    return response.json()
-  },
-  component: PeopleComponent,
-})
-
-function PeopleComponent() {
-  const data = Route.useLoaderData()
-  return (
-    <ul>
-      {data.results.map((person) => (
-        <li key={person.name}>{person.name}</li>
-      ))}
-    </ul>
-  )
-}
-```
-
-Loaders simplify your data fetching logic dramatically. Check out more information in the [Loader documentation](https://tanstack.com/router/latest/docs/framework/react/guide/data-loading#loader-parameters).
-
-
-
-# Learn More
-
-You can learn more about all of the offerings from TanStack in the [TanStack documentation](https://tanstack.com).
-
-For TanStack Start specific documentation, visit [TanStack Start](https://tanstack.com/start).
+TanStack Start (React 19) on Whop Websites (Cloudflare Workers), Tailwind CSS v4, `@whop/elements` + `@whop/elements-react` 1.10,
+Whop REST API v1 via server functions (the API key never reaches the browser).

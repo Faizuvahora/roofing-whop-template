@@ -1,0 +1,24 @@
+{
+  "environment": "sandbox",
+  "accountId": "biz_woW0EycDY6dKmN",
+  "plans": {
+    "inspection": {
+      "productId": "prod_lOmhx2iwJWSba",
+      "planId": "plan_4c7y9Uk4hTji4",
+      "price": 149,
+      "title": "Certified Roof Inspection"
+    },
+    "deposit": {
+      "productId": "prod_grKEhsUvnvPsP",
+      "planId": "plan_ZHzGPmXNSrpt8",
+      "price": 500,
+      "title": "Project Deposit — Roof Replacement"
+    },
+    "flatRate": {
+      "productId": "prod_AQOF5sTUONRxU",
+      "planId": "plan_NUEdHTbdtEowM",
+      "price": 349,
+      "title": "Gutter Clean & Roof Tune-Up"
+    }
+  }
+}
