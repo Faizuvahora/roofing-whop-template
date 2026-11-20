@@ -200,6 +200,14 @@ export interface InvoiceInput {
   description: string
   jobRef: string
   dueInDays: number
+  /** Job-site / billing address. Whop needs it to resolve invoice tax. */
+  address: { line1: string; city: string; state: string; postal_code: string; country: string }
+}
+
+function invoicePayUrl(token: string | null | undefined) {
+  if (!token) return null
+  if (/^https?:\/\//.test(token)) return token
+  return `${whopEnvironment() === 'production' ? 'https://whop.com' : 'https://sandbox.whop.com'}/checkout/${token}`
 }
 
 export const adminCreateFinalInvoice = createServerFn({ method: 'POST' })
@@ -208,7 +216,16 @@ export const adminCreateFinalInvoice = createServerFn({ method: 'POST' })
     if (!(amount >= 1)) throw new Error('Amount must be at least $1.00')
     if (d.mode === 'auto' && !/^payt_/.test(d.paymentMethodId ?? '')) throw new Error('Auto-charge needs a saved card (payt_)')
     if (!d.memberId && !isEmail(clean(d.email))) throw new Error('Customer email required')
-    return { ...d, amount, description: clean(d.description, 1000), jobRef: clean(d.jobRef, 60), dueInDays: Math.max(0, Math.min(60, Number(d.dueInDays) || 0)) }
+    const a = d.address ?? ({} as InvoiceInput['address'])
+    const address = {
+      line1: clean(a.line1, 200),
+      city: clean(a.city, 100),
+      state: clean(a.state, 100),
+      postal_code: clean(a.postal_code, 20),
+      country: clean(a.country, 2).toUpperCase() || 'US',
+    }
+    if (!address.line1 || !address.city || !address.postal_code) throw new Error('Billing address (street, city, ZIP) is required')
+    return { ...d, address, amount, description: clean(d.description, 1000), jobRef: clean(d.jobRef, 60), dueInDays: Math.max(0, Math.min(60, Number(d.dueInDays) || 0)) }
   })
   .handler(async ({ data }) => {
     checkAdminPin(data.pin)
@@ -218,6 +235,7 @@ export const adminCreateFinalInvoice = createServerFn({ method: 'POST' })
     const draft = await whopApi<{ id: string; status: string }>('POST', '/invoices', {
       account_id: ACCOUNT_ID,
       ...customer,
+      billing_address: { ...data.address, state: data.address.state || null, name: data.customerName || null },
       items: [
         {
           variant: {
@@ -251,7 +269,7 @@ export const adminCreateFinalInvoice = createServerFn({ method: 'POST' })
       id: finalized.id ?? draft.id,
       status: finalized.status ?? draft.status,
       number: finalized.number ?? null,
-      checkoutLink: finalized.checkout_link ?? null,
+      checkoutLink: invoicePayUrl(finalized.checkout_link),
       amountDue: finalized.amount_due ?? null,
       mode: data.mode,
       warning,
@@ -263,7 +281,7 @@ export const adminGetInvoice = createServerFn({ method: 'POST' })
   .handler(async ({ data }) => {
     checkAdminPin(data.pin)
     const inv = await whopApi<any>('GET', `/invoices/${encodeURIComponent(data.id)}`)
-    return { id: inv.id, status: inv.status, number: inv.number ?? null, checkoutLink: inv.checkout_link ?? null, amountDue: inv.amount_due ?? null }
+    return { id: inv.id, status: inv.status, number: inv.number ?? null, checkoutLink: invoicePayUrl(inv.checkout_link), amountDue: inv.amount_due ?? null }
   })
 
 /** Public config the client needs (no secrets). */

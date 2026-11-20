@@ -63,6 +63,8 @@ function Billing({ pin, data, reload }: { pin: string; data: Cards; reload: () =
   const [amount, setAmount] = useState('8650')
   const [description, setDescription] = useState('Roof replacement: final balance after walkthrough (materials + labor, less $500 deposit)')
   const [dueInDays, setDueInDays] = useState('7')
+  const [address, setAddress] = useState({ line1: '2100 S Lamar Blvd', city: 'Austin', state: 'TX', postal_code: '78704', country: 'US' })
+  const setAddr = (k: keyof typeof address) => (e: React.ChangeEvent<HTMLInputElement>) => setAddress((a) => ({ ...a, [k]: e.target.value }))
   const [busy, setBusy] = useState(false)
   const [err, setErr] = useState<string | null>(null)
   const [invoice, setInvoice] = useState<Invoice | null>(null)
@@ -87,6 +89,7 @@ function Billing({ pin, data, reload }: { pin: string; data: Cards; reload: () =
             description,
             jobRef,
             dueInDays: Number(dueInDays),
+            address,
           },
         }),
       )
@@ -148,6 +151,14 @@ function Billing({ pin, data, reload }: { pin: string; data: Cards; reload: () =
             <div><label className="label">Amount (USD)</label><input className="field" inputMode="decimal" required value={amount} onChange={(e) => setAmount(e.target.value)} /></div>
             <div><label className="label">Due in (days, manual only)</label><input className="field" inputMode="numeric" value={dueInDays} onChange={(e) => setDueInDays(e.target.value)} disabled={mode === 'auto'} /></div>
           </div>
+          <fieldset className="grid gap-3 sm:grid-cols-6">
+            <legend className="label sm:col-span-6">Job site / billing address (used for invoice tax)</legend>
+            <input className="field sm:col-span-6" placeholder="Street" value={address.line1} onChange={setAddr('line1')} required />
+            <input className="field sm:col-span-2" placeholder="City" value={address.city} onChange={setAddr('city')} required />
+            <input className="field sm:col-span-1" placeholder="State" value={address.state} onChange={setAddr('state')} />
+            <input className="field sm:col-span-2" placeholder="ZIP" value={address.postal_code} onChange={setAddr('postal_code')} required />
+            <input className="field sm:col-span-1" placeholder="Country" value={address.country} onChange={setAddr('country')} maxLength={2} />
+          </fieldset>
           <div><label className="label">Line item description</label><textarea className="field" rows={2} value={description} onChange={(e) => setDescription(e.target.value)} /></div>
           <fieldset className="grid gap-2 sm:grid-cols-2">
             {([
